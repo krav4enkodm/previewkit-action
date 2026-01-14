@@ -44,6 +44,31 @@ function validateContext(context: PreviewContext): void {
 }
 
 /**
+ * Simple retry helper for transient failures.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { attempts?: number; delayMs?: number; name?: string } = {}
+): Promise<T> {
+  const { attempts = 3, delayMs = 2000, name = "operation" } = options;
+  let lastError: Error | undefined;
+
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      if (i < attempts) {
+        core.warning(`${name} attempt ${i}/${attempts} failed: ${lastError.message}. Retrying...`);
+        await new Promise((r) => setTimeout(r, delayMs * i));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Create or update a preview environment.
  */
 export async function createPreview(context: PreviewContext): Promise<PreviewResult> {
@@ -57,22 +82,18 @@ export async function createPreview(context: PreviewContext): Promise<PreviewRes
 
   const adapter = getAdapter(context.cloud);
 
-  try {
-    const result = await adapter.deployPreview(context);
+  const result = await withRetry(() => adapter.deployPreview(context), {
+    name: "deployPreview",
+  });
 
-    core.info(`Preview deployed successfully`);
-    core.info(`  ID: ${result.previewId}`);
-    core.info(`  URL: ${result.url}`);
+  core.info(`Preview deployed successfully`);
+  core.info(`  ID: ${result.previewId}`);
+  core.info(`  URL: ${result.url}`);
 
-    // Set outputs
-    core.setOutput("preview-url", result.url);
-    core.setOutput("preview-id", result.previewId);
+  core.setOutput("preview-url", result.url);
+  core.setOutput("preview-id", result.previewId);
 
-    return result;
-  } catch (error) {
-    core.error(`Failed to deploy preview: ${previewName}`);
-    throw error;
-  }
+  return result;
 }
 
 /**
@@ -86,11 +107,23 @@ export async function destroyPreview(context: PreviewContext): Promise<void> {
 
   const adapter = getAdapter(context.cloud);
 
-  try {
-    await adapter.destroyPreview(previewId);
-    core.info(`Preview destroyed successfully: ${previewId}`);
-  } catch (error) {
-    core.error(`Failed to destroy preview: ${previewId}`);
-    throw error;
+  // Check if preview exists (optional optimization)
+  if (adapter.getPreviewStatus) {
+    try {
+      const status = await adapter.getPreviewStatus(previewId);
+      if (!status) {
+        core.info(`Preview ${previewId} does not exist, skipping destroy`);
+        return;
+      }
+    } catch {
+      // Status check failed, proceed with destroy anyway
+      core.warning(`Could not check preview status, attempting destroy anyway`);
+    }
   }
+
+  await withRetry(() => adapter.destroyPreview(previewId), {
+    name: "destroyPreview",
+  });
+
+  core.info(`Preview destroyed successfully: ${previewId}`);
 }

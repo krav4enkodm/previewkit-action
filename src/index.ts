@@ -24,31 +24,33 @@ async function run(): Promise<void> {
     // Get and validate action inputs
     const inputs = getActionInputs();
 
-    // Validate license before proceeding
-    const licenseKey = core.getInput("license-key");
-    const license = await validateLicense({
-      licenseKey: licenseKey || undefined,
-      repository: `${prMetadata.owner}/${prMetadata.repo}`,
-      owner: prMetadata.owner,
-      serviceType: inputs.serviceType,
-    });
-
-    if (!shouldProceed(license)) {
-      core.setFailed(`License validation failed: ${license.error || "Invalid license"}`);
-      return;
-    }
-
-    // Set license info as output for visibility
-    core.setOutput("license-tier", license.tier);
-
     // Build preview context
     const context = buildPreviewContext(prMetadata, inputs);
 
-    // Handle PR events
-    if (shouldDeploy(prMetadata)) {
-      await handleDeploy(context, license);
-    } else if (shouldDestroy(prMetadata)) {
+    // Handle destroy first - don't let license issues block cleanup
+    if (shouldDestroy(prMetadata)) {
       await handleDestroy(context);
+      core.info("PreviewKit Action completed");
+      return;
+    }
+
+    // For deploy operations, validate license
+    if (shouldDeploy(prMetadata)) {
+      const licenseKey = core.getInput("license-key");
+      const license = await validateLicense({
+        licenseKey: licenseKey || undefined,
+        repository: `${prMetadata.owner}/${prMetadata.repo}`,
+        owner: prMetadata.owner,
+        serviceType: inputs.serviceType,
+      });
+
+      if (!shouldProceed(license)) {
+        core.setFailed(`License validation failed: ${license.error || "Invalid license"}`);
+        return;
+      }
+
+      core.setOutput("license-tier", license.tier);
+      await handleDeploy(context, license);
     } else {
       core.info(`No action needed for PR event: ${prMetadata.action}`);
     }
@@ -119,11 +121,11 @@ async function handleDeploy(
 }
 
 async function handleDestroy(context: Parameters<typeof destroyPreview>[0]): Promise<void> {
+  const previewName = getPreviewName(context.serviceName, context.prNumber);
+
   try {
     await destroyPreview(context);
 
-    // Report usage to API
-    const previewName = getPreviewName(context.serviceName, context.prNumber);
     await reportUsage({
       event: "destroy",
       previewName,
@@ -133,7 +135,6 @@ async function handleDestroy(context: Parameters<typeof destroyPreview>[0]): Pro
       prNumber: context.prNumber,
     });
 
-    // Update comment
     await upsertPreviewComment({
       owner: context.owner,
       repo: context.repo,
@@ -142,8 +143,9 @@ async function handleDestroy(context: Parameters<typeof destroyPreview>[0]): Pro
       state: "destroyed",
     });
   } catch (error) {
-    core.warning(`Failed to destroy preview: ${error}`);
-    // Don't fail the action on destroy errors - the PR is closing anyway
+    // Log but don't fail - PR is closing anyway, orphaned previews scale to zero
+    core.warning(`Failed to destroy preview ${previewName}: ${error}`);
+    core.warning(`Orphaned previews scale to zero and cost ~$0. Run cleanup if needed.`);
   }
 }
 

@@ -7,6 +7,13 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
+# IMPORTANT: Concurrency control prevents race conditions
+# - For deploy events (opened, synchronize, reopened): cancels previous deployment
+# - For destroy events (closed): runs to completion, never cancelled
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: ${{ github.event.action != 'closed' }}
+
 # Required for Azure OIDC authentication and PR comments
 permissions:
   id-token: write
