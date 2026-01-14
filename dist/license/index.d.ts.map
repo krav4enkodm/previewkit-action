@@ -1,1 +1,1 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["file:///home/dk/repos/my/previewkit-action/src/license/index.ts"],"names":[],"mappings":"AAAA,OAAO,EACL,eAAe,EACf,aAAa,EACb,KAAK,uBAAuB,EAC5B,KAAK,wBAAwB,EAC7B,KAAK,aAAa,GACnB,MAAM,cAAc,CAAC"}
+{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["file:///home/dk/repos/my/previewkit-action/src/license/index.ts"],"names":[],"mappings":"AAAA,OAAO,EACL,eAAe,EACf,aAAa,EACb,KAAK,uBAAuB,EAC5B,KAAK,wBAAwB,EAC7B,KAAK,aAAa,GACnB,MAAM,cAAc,CAAC;AAEtB,OAAO,EAAE,WAAW,EAAE,KAAK,UAAU,EAAE,MAAM,SAAS,CAAC"}

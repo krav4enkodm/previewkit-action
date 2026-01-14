@@ -4,7 +4,8 @@ import { getActionInputs, buildPreviewContext } from "./core/context";
 import { createPreview, destroyPreview, registerAdapter } from "./core/previewLifecycle";
 import { upsertPreviewComment } from "./github/comments";
 import { AzureContainerAppsAdapter } from "./adapters/azure/AzureContainerAppsAdapter";
-import { validateLicense, shouldProceed, LicenseValidationResult } from "./license";
+import { validateLicense, shouldProceed, LicenseValidationResult, reportUsage } from "./license";
+import { getPreviewName } from "./core/naming";
 
 // Register available adapters
 registerAdapter("azure", () => new AzureContainerAppsAdapter());
@@ -80,6 +81,19 @@ async function handleDeploy(
     // Deploy preview
     const result = await createPreview(context);
 
+    // Report usage to API
+    const previewName = getPreviewName(context.serviceName, context.prNumber);
+    await reportUsage({
+      event: "deploy",
+      previewName,
+      repository: `${context.owner}/${context.repo}`,
+      organization: context.owner,
+      serviceName: context.serviceName,
+      prNumber: context.prNumber,
+      sha: context.sha,
+      url: result.url,
+    });
+
     // Update comment with success
     await upsertPreviewComment({
       owner: context.owner,
@@ -107,6 +121,17 @@ async function handleDeploy(
 async function handleDestroy(context: Parameters<typeof destroyPreview>[0]): Promise<void> {
   try {
     await destroyPreview(context);
+
+    // Report usage to API
+    const previewName = getPreviewName(context.serviceName, context.prNumber);
+    await reportUsage({
+      event: "destroy",
+      previewName,
+      repository: `${context.owner}/${context.repo}`,
+      organization: context.owner,
+      serviceName: context.serviceName,
+      prNumber: context.prNumber,
+    });
 
     // Update comment
     await upsertPreviewComment({

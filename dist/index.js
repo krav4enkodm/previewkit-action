@@ -40137,6 +40137,7 @@ const previewLifecycle_1 = __nccwpck_require__(22166);
 const comments_1 = __nccwpck_require__(43440);
 const AzureContainerAppsAdapter_1 = __nccwpck_require__(53950);
 const license_1 = __nccwpck_require__(83310);
+const naming_1 = __nccwpck_require__(9978);
 // Register available adapters
 (0, previewLifecycle_1.registerAdapter)("azure", () => new AzureContainerAppsAdapter_1.AzureContainerAppsAdapter());
 async function run() {
@@ -40200,6 +40201,18 @@ async function handleDeploy(context, license) {
     try {
         // Deploy preview
         const result = await (0, previewLifecycle_1.createPreview)(context);
+        // Report usage to API
+        const previewName = (0, naming_1.getPreviewName)(context.serviceName, context.prNumber);
+        await (0, license_1.reportUsage)({
+            event: "deploy",
+            previewName,
+            repository: `${context.owner}/${context.repo}`,
+            organization: context.owner,
+            serviceName: context.serviceName,
+            prNumber: context.prNumber,
+            sha: context.sha,
+            url: result.url,
+        });
         // Update comment with success
         await (0, comments_1.upsertPreviewComment)({
             owner: context.owner,
@@ -40227,6 +40240,16 @@ async function handleDeploy(context, license) {
 async function handleDestroy(context) {
     try {
         await (0, previewLifecycle_1.destroyPreview)(context);
+        // Report usage to API
+        const previewName = (0, naming_1.getPreviewName)(context.serviceName, context.prNumber);
+        await (0, license_1.reportUsage)({
+            event: "destroy",
+            previewName,
+            repository: `${context.owner}/${context.repo}`,
+            organization: context.owner,
+            serviceName: context.serviceName,
+            prNumber: context.prNumber,
+        });
         // Update comment
         await (0, comments_1.upsertPreviewComment)({
             owner: context.owner,
@@ -40252,10 +40275,86 @@ run();
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.shouldProceed = exports.validateLicense = void 0;
+exports.reportUsage = exports.shouldProceed = exports.validateLicense = void 0;
 var validation_1 = __nccwpck_require__(21583);
 Object.defineProperty(exports, "validateLicense", ({ enumerable: true, get: function () { return validation_1.validateLicense; } }));
 Object.defineProperty(exports, "shouldProceed", ({ enumerable: true, get: function () { return validation_1.shouldProceed; } }));
+var usage_1 = __nccwpck_require__(47621);
+Object.defineProperty(exports, "reportUsage", ({ enumerable: true, get: function () { return usage_1.reportUsage; } }));
+
+
+/***/ }),
+
+/***/ 47621:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.reportUsage = reportUsage;
+const core = __importStar(__nccwpck_require__(59550));
+/**
+ * Report a usage event to the PreviewKit API.
+ * This is used for tracking and enforcing limits.
+ */
+async function reportUsage(event) {
+    const apiUrl = core.getInput("api-url") || "https://previewkit.vercel.app/api";
+    const endpoint = `${apiUrl}/v1/usage`;
+    try {
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "User-Agent": "PreviewKit-Action/1.0",
+            },
+            body: JSON.stringify(event),
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            core.warning(`Usage tracking failed: ${response.status} - ${errorText}`);
+            return;
+        }
+        const result = (await response.json());
+        core.info(`Usage event recorded: ${event.event} (${result.message || "success"})`);
+    }
+    catch (error) {
+        // Don't fail the action if usage tracking fails
+        core.warning(`Usage tracking error: ${error}`);
+    }
+}
 
 
 /***/ }),

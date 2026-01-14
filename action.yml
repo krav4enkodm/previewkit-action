@@ -14,7 +14,7 @@ inputs:
   api-url:
     description: "PreviewKit API URL (defaults to production API)"
     required: false
-    default: "https://previewkit.dev/api"
+    default: "https://previewkit.vercel.app/api"
 
   # Required inputs
   service-name:
