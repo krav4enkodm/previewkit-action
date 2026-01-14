@@ -1,0 +1,46 @@
+{
+  "name": "previewkit-action",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub Action for PR-driven preview environments",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "ncc build src/index.ts -o dist --source-map --license licenses.txt",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "github-action",
+    "preview-environments",
+    "azure",
+    "container-apps",
+    "aws",
+    "gcp"
+  ],
+  "author": "PreviewKit",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/krav4enkodm/previewkit-action.git"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.8",
+    "@vercel/ncc": "^0.38.4",
+    "prettier": "^3.7.4",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.17"
+  },
+  "dependencies": {
+    "@actions/core": "^2.0.2",
+    "@actions/github": "^7.0.0",
+    "@azure/arm-appcontainers": "^3.0.0",
+    "@azure/identity": "^4.13.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

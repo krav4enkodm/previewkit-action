@@ -1,0 +1,64 @@
+# Example GitHub Actions workflow for PreviewKit
+# This workflow deploys a preview environment on every PR
+
+name: Preview Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+# Required for Azure OIDC authentication and PR comments
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  # Azure configuration
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  AZURE_RESOURCE_GROUP: rg-preview
+  AZURE_LOCATION: eastus
+  AZURE_CONTAINER_APP_ENVIRONMENT: preview-env
+  # ACR name (without .azurecr.io)
+  AZURE_REGISTRY_NAME: myregistry
+  AZURE_REGISTRY_SERVER: myregistry.azurecr.io
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Azure OIDC login
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Build and push container image (on open/sync only)
+      - name: Build and Push Image
+        if: github.event.action != 'closed'
+        run: |
+          az acr login --name ${{ env.AZURE_REGISTRY_NAME }}
+          docker build -t ${{ env.AZURE_REGISTRY_SERVER }}/frontend:${{ github.sha }} .
+          docker push ${{ env.AZURE_REGISTRY_SERVER }}/frontend:${{ github.sha }}
+
+      # Deploy or destroy preview
+      - name: PreviewKit
+        uses: previewkit/previewkit@v1
+        with:
+          service-name: frontend
+          service-type: frontend
+          runtime: node20
+          cloud: azure
+          azure-subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+          azure-resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
+          azure-location: ${{ env.AZURE_LOCATION }}
+          azure-container-app-environment: ${{ env.AZURE_CONTAINER_APP_ENVIRONMENT }}
+          azure-registry-server: ${{ env.AZURE_REGISTRY_SERVER }}
+          image: ${{ env.AZURE_REGISTRY_SERVER }}/frontend:${{ github.sha }}
+          port: 3000
+          github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,89 @@
+name: "PreviewKit"
+description: "PR-driven preview environments for cloud-native teams"
+author: "PreviewKit"
+
+branding:
+  icon: "eye"
+  color: "blue"
+
+inputs:
+  # License
+  license-key:
+    description: "PreviewKit license key (optional for free tier, required for paid tiers)"
+    required: false
+  api-url:
+    description: "PreviewKit API URL (defaults to production API)"
+    required: false
+    default: "https://previewkit.dev/api"
+
+  # Required inputs
+  service-name:
+    description: "Name of the service to preview"
+    required: true
+  service-type:
+    description: "Type of service: frontend or backend"
+    required: true
+  runtime:
+    description: "Runtime environment (e.g., node20, python3.11)"
+    required: true
+
+  # Cloud provider
+  cloud:
+    description: "Cloud provider: azure, aws, gcp"
+    required: false
+    default: "azure"
+
+  # Azure-specific inputs
+  azure-subscription-id:
+    description: "Azure subscription ID"
+    required: false
+  azure-resource-group:
+    description: "Azure resource group name"
+    required: false
+  azure-location:
+    description: "Azure region (e.g., eastus, westeurope)"
+    required: false
+    default: "eastus"
+  azure-container-app-environment:
+    description: "Name of the Container Apps Environment"
+    required: false
+  azure-registry-server:
+    description: "Azure Container Registry server (e.g., myregistry.azurecr.io)"
+    required: false
+  azure-registry-identity:
+    description: "User-assigned managed identity resource ID for ACR pull (recommended)"
+    required: false
+  azure-registry-username:
+    description: "ACR admin username (alternative to managed identity)"
+    required: false
+  azure-registry-password:
+    description: "ACR admin password (alternative to managed identity)"
+    required: false
+
+  # Container settings
+  image:
+    description: "Container image to deploy (defaults to service-name:sha)"
+    required: false
+  port:
+    description: "Container port to expose (defaults: frontend=3000, backend=8080)"
+    required: false
+
+  # Optional settings
+  ttl-hours:
+    description: "Time-to-live for the preview in hours"
+    required: false
+  github-token:
+    description: "GitHub token for PR comments (defaults to GITHUB_TOKEN env var)"
+    required: false
+
+outputs:
+  preview-url:
+    description: "URL of the deployed preview environment"
+  preview-id:
+    description: "Unique identifier of the preview"
+  license-tier:
+    description: "License tier used for this deployment (free, team, business, enterprise)"
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
