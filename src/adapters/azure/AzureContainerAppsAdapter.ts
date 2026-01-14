@@ -15,7 +15,7 @@ export class AzureContainerAppsAdapter implements PreviewAdapter {
   }
 
   async deployPreview(context: PreviewContext): Promise<PreviewResult> {
-    const previewName = getPreviewName(context.serviceName, context.prNumber, context.sha);
+    const previewName = getPreviewName(context.serviceName, context.prNumber);
     const containerName = getContainerName(context.serviceName);
 
     core.info(`Deploying Container App: ${previewName}`);

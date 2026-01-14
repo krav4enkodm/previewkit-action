@@ -49,11 +49,11 @@ function validateContext(context: PreviewContext): void {
 export async function createPreview(context: PreviewContext): Promise<PreviewResult> {
   validateContext(context);
 
-  const previewName = getPreviewName(context.serviceName, context.prNumber, context.sha);
-  core.info(`Creating preview: ${previewName}`);
+  const previewName = getPreviewName(context.serviceName, context.prNumber);
+  core.info(`Creating/updating preview: ${previewName}`);
   core.info(`  Cloud: ${context.cloud}`);
   core.info(`  Service: ${context.serviceName} (${context.serviceType})`);
-  core.info(`  SHA: ${context.sha.substring(0, 7)}`);
+  core.info(`  Commit: ${context.sha.substring(0, 7)}`);
 
   const adapter = getAdapter(context.cloud);
 
@@ -81,7 +81,7 @@ export async function createPreview(context: PreviewContext): Promise<PreviewRes
 export async function destroyPreview(context: PreviewContext): Promise<void> {
   validateContext(context);
 
-  const previewId = getPreviewName(context.serviceName, context.prNumber, context.sha);
+  const previewId = getPreviewName(context.serviceName, context.prNumber);
   core.info(`Destroying preview: ${previewId}`);
 
   const adapter = getAdapter(context.cloud);

@@ -1,7 +1,7 @@
 /**
  * Generates a deterministic, cloud-safe preview name.
  *
- * Format: <service>-pr-<number>-<hash>
+ * Format: <service>-pr-<number>
  *
  * Rules:
  * - Lowercase
@@ -9,9 +9,12 @@
  * - Must start with a letter (Azure requirement)
  * - No leading/trailing hyphens
  * - Max 63 characters (DNS label limit)
- * - Includes short hash to avoid AAD identity collisions on re-deploy
+ *
+ * Note: SHA is NOT included in the name. This allows the same Container App
+ * to be updated on each push instead of creating a new one. To avoid managed
+ * identity issues, use a user-assigned managed identity for ACR pull.
  */
-export declare function getPreviewName(serviceName: string, prNumber: number, sha?: string): string;
+export declare function getPreviewName(serviceName: string, prNumber: number): string;
 /**
  * Normalizes a service name for use as a container name.
  * Container names have similar restrictions to resource names.
