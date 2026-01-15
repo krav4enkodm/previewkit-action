@@ -1,6 +1,6 @@
 import * as core from "@actions/core";
 import { getPullRequestMetadata, shouldDeploy, shouldDestroy } from "./github/pullRequest";
-import { getActionInputs, buildPreviewContext } from "./core/context";
+import { getActionInputs, buildPreviewContext, type ActionInputs } from "./core/context";
 import { createPreview, destroyPreview, registerAdapter } from "./core/previewLifecycle";
 import { upsertPreviewComment } from "./github/comments";
 import { AzureContainerAppsAdapter } from "./adapters/azure/AzureContainerAppsAdapter";
@@ -22,7 +22,22 @@ async function run(): Promise<void> {
     }
 
     // Get and validate action inputs
-    const inputs = getActionInputs();
+    let inputs: ActionInputs;
+    try {
+      inputs = getActionInputs();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Invalid action inputs";
+      await upsertPreviewComment({
+        owner: prMetadata.owner,
+        repo: prMetadata.repo,
+        prNumber: prMetadata.prNumber,
+        serviceName: core.getInput("service-name") || "unknown",
+        state: "failed",
+        error: message,
+      });
+      core.setFailed(message);
+      return;
+    }
 
     // Build preview context
     const context = buildPreviewContext(prMetadata, inputs);
@@ -44,7 +59,21 @@ async function run(): Promise<void> {
       });
 
       if (!shouldProceed(license)) {
-        core.setFailed(`License validation failed: ${license.error || "Invalid license"}`);
+        const failureMessage =
+          license.error ||
+          license.message ||
+          (license.limits.maxConcurrentPreviews === 0
+            ? "License limits exceeded"
+            : "License validation failed");
+        await upsertPreviewComment({
+          owner: context.owner,
+          repo: context.repo,
+          prNumber: context.prNumber,
+          serviceName: context.serviceName,
+          state: "failed",
+          error: failureMessage,
+        });
+        core.setFailed(failureMessage);
         return;
       }
 
@@ -122,6 +151,14 @@ async function handleDeploy(
 async function handleDestroy(context: Parameters<typeof destroyPreview>[0]): Promise<void> {
   const previewName = getPreviewName(context.serviceName, context.prNumber);
 
+  await upsertPreviewComment({
+    owner: context.owner,
+    repo: context.repo,
+    prNumber: context.prNumber,
+    serviceName: context.serviceName,
+    state: "destroying",
+  });
+
   try {
     await destroyPreview(context);
 
@@ -142,6 +179,15 @@ async function handleDestroy(context: Parameters<typeof destroyPreview>[0]): Pro
       state: "destroyed",
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    await upsertPreviewComment({
+      owner: context.owner,
+      repo: context.repo,
+      prNumber: context.prNumber,
+      serviceName: context.serviceName,
+      state: "destroy_failed",
+      error: message,
+    });
     // Log but don't fail - PR is closing anyway, orphaned previews scale to zero
     core.warning(`Failed to destroy preview ${previewName}: ${error}`);
     core.warning(`Orphaned previews scale to zero and cost ~$0. Run cleanup if needed.`);

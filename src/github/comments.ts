@@ -3,7 +3,13 @@ import * as github from "@actions/github";
 
 const COMMENT_MARKER = "<!-- previewkit-comment -->";
 
-export type PreviewState = "deploying" | "ready" | "failed" | "destroyed";
+export type PreviewState =
+  | "deploying"
+  | "ready"
+  | "failed"
+  | "destroying"
+  | "destroyed"
+  | "destroy_failed";
 
 export interface CommentOptions {
   owner: string;
@@ -58,12 +64,32 @@ function buildCommentBody(options: CommentOptions): string {
       }
       break;
 
+    case "destroying":
+      lines.push(`## 🗑️ Preview Destroying`);
+      lines.push("");
+      lines.push(`**Service:** \`${serviceName}\``);
+      lines.push("");
+      lines.push("Cleanup in progress...");
+      break;
+
     case "destroyed":
       lines.push(`## 🗑️ Preview Destroyed`);
       lines.push("");
       lines.push(`**Service:** \`${serviceName}\``);
       lines.push("");
       lines.push("The preview environment has been cleaned up.");
+      break;
+
+    case "destroy_failed":
+      lines.push(`## ❌ Preview Cleanup Failed`);
+      lines.push("");
+      lines.push(`**Service:** \`${serviceName}\``);
+      lines.push("");
+      if (error) {
+        lines.push("```");
+        lines.push(error);
+        lines.push("```");
+      }
       break;
   }
 
@@ -87,16 +113,31 @@ async function findExistingComment(
   repo: string,
   prNumber: number
 ): Promise<number | null> {
-  const { data: comments } = await octokit.rest.issues.listComments({
-    owner,
-    repo,
-    issue_number: prNumber,
-    per_page: 100,
-  });
+  const perPage = 100;
+  let page = 1;
 
-  const existingComment = comments.find((comment) => comment.body?.includes(COMMENT_MARKER));
+  while (true) {
+    const { data: comments } = await octokit.rest.issues.listComments({
+      owner,
+      repo,
+      issue_number: prNumber,
+      per_page: perPage,
+      page,
+    });
 
-  return existingComment?.id ?? null;
+    const existingComment = comments.find((comment) => comment.body?.includes(COMMENT_MARKER));
+    if (existingComment) {
+      return existingComment.id;
+    }
+
+    if (comments.length < perPage) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return null;
 }
 
 /**
