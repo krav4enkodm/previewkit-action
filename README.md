@@ -11,8 +11,12 @@ Deploy isolated preview environments on every Pull Request—without DevOps over
 
 ## How It Works
 
-```
-PR Opened → Container Deployed → URL Posted → PR Closed → Container Deleted
+```mermaid
+flowchart LR
+  A[PR Opened] --> B[Container Deployed]
+  B --> C[Preview URL Posted]
+  C --> D[PR Closed]
+  D --> E[Container Deleted]
 ```
 
 Every PR gets its own isolated preview. Stakeholders review changes via URL. No staging bottlenecks.
