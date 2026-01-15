@@ -1,6 +1,5 @@
 export {
   PreviewContext,
-  ServiceType,
   CloudProvider,
   ActionInputs,
   getActionInputs,

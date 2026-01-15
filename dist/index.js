@@ -39289,7 +39289,7 @@ class AzureContainerAppsAdapter {
             configuration: {
                 ingress: {
                     external: true,
-                    targetPort: this.getTargetPort(context),
+                    targetPort: this.getTargetPort(),
                     transport: "auto",
                 },
                 registries: this.getRegistryConfig(),
@@ -39376,13 +39376,9 @@ class AzureContainerAppsAdapter {
     getEnvironmentId() {
         return `/subscriptions/${this.config.subscriptionId}/resourceGroups/${this.config.resourceGroup}/providers/Microsoft.App/managedEnvironments/${this.config.containerAppEnvironment}`;
     }
-    getTargetPort(context) {
-        const portInput = core.getInput("port");
-        if (portInput) {
-            return parseInt(portInput, 10);
-        }
-        // Default ports by service type
-        return context.serviceType === "frontend" ? 3000 : 8080;
+    getTargetPort() {
+        const portInput = core.getInput("port", { required: true });
+        return parseInt(portInput, 10);
     }
     getIdentityConfig() {
         const identityId = core.getInput("azure-registry-identity");
@@ -39571,33 +39567,15 @@ const core = __importStar(__nccwpck_require__(59550));
  */
 function getActionInputs() {
     const serviceName = core.getInput("service-name", { required: true });
-    const serviceTypeRaw = core.getInput("service-type", { required: true });
-    const runtime = core.getInput("runtime", { required: true });
     const cloudRaw = core.getInput("cloud") || "azure";
-    const ttlHoursRaw = core.getInput("ttl-hours");
-    // Validate service-type
-    if (serviceTypeRaw !== "frontend" && serviceTypeRaw !== "backend") {
-        throw new Error(`Invalid service-type: '${serviceTypeRaw}'. Must be 'frontend' or 'backend'`);
-    }
     // Validate cloud
     const validClouds = ["azure", "aws", "gcp"];
     if (!validClouds.includes(cloudRaw)) {
         throw new Error(`Invalid cloud: '${cloudRaw}'. Must be one of: ${validClouds.join(", ")}`);
     }
-    // Parse TTL if provided
-    let ttlHours;
-    if (ttlHoursRaw) {
-        ttlHours = parseInt(ttlHoursRaw, 10);
-        if (isNaN(ttlHours) || ttlHours <= 0) {
-            throw new Error(`Invalid ttl-hours: '${ttlHoursRaw}'. Must be a positive integer`);
-        }
-    }
     return {
         serviceName,
-        serviceType: serviceTypeRaw,
-        runtime,
         cloud: cloudRaw,
-        ttlHours,
     };
 }
 /**
@@ -39610,11 +39588,8 @@ function buildPreviewContext(pr, inputs) {
         prNumber: pr.prNumber,
         sha: pr.sha,
         serviceName: inputs.serviceName,
-        serviceType: inputs.serviceType,
-        runtime: inputs.runtime,
         cloud: inputs.cloud,
         env: inputs.env ?? {},
-        ttlHours: inputs.ttlHours,
     };
 }
 
@@ -39786,6 +39761,26 @@ function validateContext(context) {
     }
 }
 /**
+ * Simple retry helper for transient failures.
+ */
+async function withRetry(fn, options = {}) {
+    const { attempts = 3, delayMs = 2000, name = "operation" } = options;
+    let lastError;
+    for (let i = 1; i <= attempts; i++) {
+        try {
+            return await fn();
+        }
+        catch (error) {
+            lastError = error instanceof Error ? error : new Error(String(error));
+            if (i < attempts) {
+                core.warning(`${name} attempt ${i}/${attempts} failed: ${lastError.message}. Retrying...`);
+                await new Promise((r) => setTimeout(r, delayMs * i));
+            }
+        }
+    }
+    throw lastError;
+}
+/**
  * Create or update a preview environment.
  */
 async function createPreview(context) {
@@ -39793,23 +39788,18 @@ async function createPreview(context) {
     const previewName = (0, naming_1.getPreviewName)(context.serviceName, context.prNumber);
     core.info(`Creating/updating preview: ${previewName}`);
     core.info(`  Cloud: ${context.cloud}`);
-    core.info(`  Service: ${context.serviceName} (${context.serviceType})`);
+    core.info(`  Service: ${context.serviceName}`);
     core.info(`  Commit: ${context.sha.substring(0, 7)}`);
     const adapter = getAdapter(context.cloud);
-    try {
-        const result = await adapter.deployPreview(context);
-        core.info(`Preview deployed successfully`);
-        core.info(`  ID: ${result.previewId}`);
-        core.info(`  URL: ${result.url}`);
-        // Set outputs
-        core.setOutput("preview-url", result.url);
-        core.setOutput("preview-id", result.previewId);
-        return result;
-    }
-    catch (error) {
-        core.error(`Failed to deploy preview: ${previewName}`);
-        throw error;
-    }
+    const result = await withRetry(() => adapter.deployPreview(context), {
+        name: "deployPreview",
+    });
+    core.info(`Preview deployed successfully`);
+    core.info(`  ID: ${result.previewId}`);
+    core.info(`  URL: ${result.url}`);
+    core.setOutput("preview-url", result.url);
+    core.setOutput("preview-id", result.previewId);
+    return result;
 }
 /**
  * Destroy a preview environment.
@@ -39819,14 +39809,24 @@ async function destroyPreview(context) {
     const previewId = (0, naming_1.getPreviewName)(context.serviceName, context.prNumber);
     core.info(`Destroying preview: ${previewId}`);
     const adapter = getAdapter(context.cloud);
-    try {
-        await adapter.destroyPreview(previewId);
-        core.info(`Preview destroyed successfully: ${previewId}`);
+    // Check if preview exists (optional optimization)
+    if (adapter.getPreviewStatus) {
+        try {
+            const status = await adapter.getPreviewStatus(previewId);
+            if (!status) {
+                core.info(`Preview ${previewId} does not exist, skipping destroy`);
+                return;
+            }
+        }
+        catch {
+            // Status check failed, proceed with destroy anyway
+            core.warning(`Could not check preview status, attempting destroy anyway`);
+        }
     }
-    catch (error) {
-        core.error(`Failed to destroy preview: ${previewId}`);
-        throw error;
-    }
+    await withRetry(() => adapter.destroyPreview(previewId), {
+        name: "destroyPreview",
+    });
+    core.info(`Preview destroyed successfully: ${previewId}`);
 }
 
 
@@ -40151,28 +40151,28 @@ async function run() {
         }
         // Get and validate action inputs
         const inputs = (0, context_1.getActionInputs)();
-        // Validate license before proceeding
-        const licenseKey = core.getInput("license-key");
-        const license = await (0, license_1.validateLicense)({
-            licenseKey: licenseKey || undefined,
-            repository: `${prMetadata.owner}/${prMetadata.repo}`,
-            owner: prMetadata.owner,
-            serviceType: inputs.serviceType,
-        });
-        if (!(0, license_1.shouldProceed)(license)) {
-            core.setFailed(`License validation failed: ${license.error || "Invalid license"}`);
-            return;
-        }
-        // Set license info as output for visibility
-        core.setOutput("license-tier", license.tier);
         // Build preview context
         const context = (0, context_1.buildPreviewContext)(prMetadata, inputs);
-        // Handle PR events
-        if ((0, pullRequest_1.shouldDeploy)(prMetadata)) {
-            await handleDeploy(context, license);
-        }
-        else if ((0, pullRequest_1.shouldDestroy)(prMetadata)) {
+        // Handle destroy first - don't let license issues block cleanup
+        if ((0, pullRequest_1.shouldDestroy)(prMetadata)) {
             await handleDestroy(context);
+            core.info("PreviewKit Action completed");
+            return;
+        }
+        // For deploy operations, validate license
+        if ((0, pullRequest_1.shouldDeploy)(prMetadata)) {
+            const licenseKey = core.getInput("license-key");
+            const license = await (0, license_1.validateLicense)({
+                licenseKey: licenseKey || undefined,
+                repository: `${prMetadata.owner}/${prMetadata.repo}`,
+                owner: prMetadata.owner,
+            });
+            if (!(0, license_1.shouldProceed)(license)) {
+                core.setFailed(`License validation failed: ${license.error || "Invalid license"}`);
+                return;
+            }
+            core.setOutput("license-tier", license.tier);
+            await handleDeploy(context, license);
         }
         else {
             core.info(`No action needed for PR event: ${prMetadata.action}`);
@@ -40238,10 +40238,9 @@ async function handleDeploy(context, license) {
     }
 }
 async function handleDestroy(context) {
+    const previewName = (0, naming_1.getPreviewName)(context.serviceName, context.prNumber);
     try {
         await (0, previewLifecycle_1.destroyPreview)(context);
-        // Report usage to API
-        const previewName = (0, naming_1.getPreviewName)(context.serviceName, context.prNumber);
         await (0, license_1.reportUsage)({
             event: "destroy",
             previewName,
@@ -40250,7 +40249,6 @@ async function handleDestroy(context) {
             serviceName: context.serviceName,
             prNumber: context.prNumber,
         });
-        // Update comment
         await (0, comments_1.upsertPreviewComment)({
             owner: context.owner,
             repo: context.repo,
@@ -40260,8 +40258,9 @@ async function handleDestroy(context) {
         });
     }
     catch (error) {
-        core.warning(`Failed to destroy preview: ${error}`);
-        // Don't fail the action on destroy errors - the PR is closing anyway
+        // Log but don't fail - PR is closing anyway, orphaned previews scale to zero
+        core.warning(`Failed to destroy preview ${previewName}: ${error}`);
+        core.warning(`Orphaned previews scale to zero and cost ~$0. Run cleanup if needed.`);
     }
 }
 run();
@@ -40331,7 +40330,8 @@ const core = __importStar(__nccwpck_require__(59550));
  * This is used for tracking and enforcing limits.
  */
 async function reportUsage(event) {
-    const apiUrl = core.getInput("api-url") || "https://previewkit.vercel.app/api";
+    // api-url is undocumented, used for internal testing only
+    const apiUrl = core.getInput("api-url") || "https://previewkit.dev/api";
     const endpoint = `${apiUrl}/v1/usage`;
     try {
         const response = await fetch(endpoint, {
@@ -40408,6 +40408,7 @@ const core = __importStar(__nccwpck_require__(59550));
  * returns free tier limits.
  */
 async function validateLicense(request) {
+    // api-url is undocumented, used for internal testing only
     const apiUrl = core.getInput("api-url") || "https://previewkit.dev/api";
     const endpoint = `${apiUrl}/v1/license/validate`;
     core.info("Validating license...");
@@ -40422,7 +40423,6 @@ async function validateLicense(request) {
                 licenseKey: request.licenseKey || null,
                 repository: request.repository,
                 organization: request.owner,
-                serviceType: request.serviceType,
             }),
         });
         if (!response.ok) {

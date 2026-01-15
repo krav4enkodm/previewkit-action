@@ -41,7 +41,6 @@ async function run(): Promise<void> {
         licenseKey: licenseKey || undefined,
         repository: `${prMetadata.owner}/${prMetadata.repo}`,
         owner: prMetadata.owner,
-        serviceType: inputs.serviceType,
       });
 
       if (!shouldProceed(license)) {

@@ -44,7 +44,7 @@ export class AzureContainerAppsAdapter implements PreviewAdapter {
       configuration: {
         ingress: {
           external: true,
-          targetPort: this.getTargetPort(context),
+          targetPort: this.getTargetPort(),
           transport: "auto",
         },
         registries: this.getRegistryConfig(),
@@ -147,13 +147,9 @@ export class AzureContainerAppsAdapter implements PreviewAdapter {
     return `/subscriptions/${this.config.subscriptionId}/resourceGroups/${this.config.resourceGroup}/providers/Microsoft.App/managedEnvironments/${this.config.containerAppEnvironment}`;
   }
 
-  private getTargetPort(context: PreviewContext): number {
-    const portInput = core.getInput("port");
-    if (portInput) {
-      return parseInt(portInput, 10);
-    }
-    // Default ports by service type
-    return context.serviceType === "frontend" ? 3000 : 8080;
+  private getTargetPort(): number {
+    const portInput = core.getInput("port", { required: true });
+    return parseInt(portInput, 10);
   }
 
   private getIdentityConfig():

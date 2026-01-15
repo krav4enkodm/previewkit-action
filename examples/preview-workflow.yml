@@ -58,8 +58,6 @@ jobs:
         uses: previewkit/previewkit@v1
         with:
           service-name: frontend
-          service-type: frontend
-          runtime: node20
           cloud: azure
           azure-subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
           azure-resource-group: ${{ env.AZURE_RESOURCE_GROUP }}

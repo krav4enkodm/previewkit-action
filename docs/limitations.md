@@ -87,14 +87,12 @@ PreviewKit **does not**:
 
 - Scan your repo to detect frameworks
 - Guess your build commands
-- Auto-configure ports or runtime
+- Auto-configure ports
 
 You must explicitly configure:
 
 - `service-name`
-- `service-type`
-- `runtime`
-- `port` (or use defaults)
+- `port`
 
 **Why?** Auto-detection is magic that breaks. Explicit configuration is predictable.
 
@@ -110,16 +108,13 @@ You cannot deploy the same PR to Azure AND AWS simultaneously.
 
 ---
 
-## TTL Cleanup Is Best-Effort
+## Orphaned Previews
 
-When TTL expires, previews are deleted on a best-effort basis.
+Previews are deleted when PRs close, but edge cases (workflow failures, cancelled runs) may leave orphaned resources.
 
-- Cleanup runs on subsequent workflow triggers
-- Orphaned resources may exist briefly
+**Good news:** Azure Container Apps scale to zero when idle, so orphaned previews cost ~$0.
 
-**Why?** GitHub Actions doesn't support scheduled runs per-repo without custom scheduling. Full cleanup requires a SaaS backend (coming in v2).
-
-**Mitigation:** Set a reasonable `ttl-hours` and periodically audit your resource group:
+**Mitigation:** Periodically audit your resource group or use the cleanup workflow from the README:
 
 ```bash
 az containerapp list --resource-group rg-preview --query "[].name"

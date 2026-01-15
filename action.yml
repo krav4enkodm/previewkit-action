@@ -11,20 +11,10 @@ inputs:
   license-key:
     description: "PreviewKit license key (optional for free tier, required for paid tiers)"
     required: false
-  api-url:
-    description: "PreviewKit API URL (defaults to production API)"
-    required: false
-    default: "https://previewkit.vercel.app/api"
 
   # Required inputs
   service-name:
     description: "Name of the service to preview"
-    required: true
-  service-type:
-    description: "Type of service: frontend or backend"
-    required: true
-  runtime:
-    description: "Runtime environment (e.g., node20, python3.11)"
     required: true
 
   # Cloud provider
@@ -65,13 +55,10 @@ inputs:
     description: "Container image to deploy (defaults to service-name:sha)"
     required: false
   port:
-    description: "Container port to expose (defaults: frontend=3000, backend=8080)"
-    required: false
+    description: "Container port to expose"
+    required: true
 
   # Optional settings
-  ttl-hours:
-    description: "Time-to-live for the preview in hours"
-    required: false
   github-token:
     description: "GitHub token for PR comments (defaults to GITHUB_TOKEN env var)"
     required: false

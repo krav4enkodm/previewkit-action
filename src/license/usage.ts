@@ -16,7 +16,8 @@ export interface UsageEvent {
  * This is used for tracking and enforcing limits.
  */
 export async function reportUsage(event: UsageEvent): Promise<void> {
-  const apiUrl = core.getInput("api-url") || "https://previewkit.vercel.app/api";
+  // api-url is undocumented, used for internal testing only
+  const apiUrl = core.getInput("api-url") || "https://previewkit.dev/api";
   const endpoint = `${apiUrl}/v1/usage`;
 
   try {

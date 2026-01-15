@@ -1,7 +1,6 @@
 export interface LicenseLimits {
     maxConcurrentPreviews: number;
     maxPreviewsPerMonth: number;
-    ttlHours?: number;
 }
 export interface LicenseValidationResult {
     valid: boolean;
@@ -14,7 +13,6 @@ export interface LicenseValidationRequest {
     licenseKey?: string;
     repository: string;
     owner: string;
-    serviceType: "frontend" | "backend";
 }
 /**
  * Validate license key against the PreviewKit API.

@@ -61,8 +61,7 @@ jobs:
       - uses: previewkit/action@v1
         with:
           service-name: app
-          service-type: frontend
-          runtime: node20
+          port: 3000
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           azure-resource-group: rg-preview
           azure-container-app-environment: preview-env
@@ -104,8 +103,7 @@ This ensures:
 | Input | Required | Description |
 |-------|----------|-------------|
 | `service-name` | Yes | Name of the service |
-| `service-type` | Yes | `frontend` or `backend` |
-| `runtime` | Yes | Runtime (e.g., `node20`) |
+| `port` | Yes | Container port to expose |
 | `cloud` | No | Cloud provider (default: `azure`) |
 
 ### Azure Configuration
@@ -118,7 +116,6 @@ This ensures:
 | `azure-registry-server` | No | ACR server URL |
 | `azure-registry-identity` | No | Managed identity for ACR pull |
 | `image` | No | Container image (default: `service:sha`) |
-| `port` | No | Container port (default: 3000/8080) |
 
 *Required when `cloud: azure`
 

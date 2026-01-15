@@ -3,7 +3,6 @@ import * as core from "@actions/core";
 export interface LicenseLimits {
   maxConcurrentPreviews: number;
   maxPreviewsPerMonth: number;
-  ttlHours?: number;
 }
 
 export interface LicenseValidationResult {
@@ -18,7 +17,6 @@ export interface LicenseValidationRequest {
   licenseKey?: string;
   repository: string;
   owner: string;
-  serviceType: "frontend" | "backend";
 }
 
 /**
@@ -30,6 +28,7 @@ export interface LicenseValidationRequest {
 export async function validateLicense(
   request: LicenseValidationRequest
 ): Promise<LicenseValidationResult> {
+  // api-url is undocumented, used for internal testing only
   const apiUrl = core.getInput("api-url") || "https://previewkit.dev/api";
   const endpoint = `${apiUrl}/v1/license/validate`;
 
@@ -46,7 +45,6 @@ export async function validateLicense(
         licenseKey: request.licenseKey || null,
         repository: request.repository,
         organization: request.owner,
-        serviceType: request.serviceType,
       }),
     });
 

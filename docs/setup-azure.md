@@ -151,14 +151,12 @@ jobs:
         uses: previewkit/previewkit@v1
         with:
           service-name: myapp
-          service-type: frontend
-          runtime: node20
+          port: 3000
           azure-subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           azure-resource-group: rg-preview
           azure-container-app-environment: preview-env
           azure-registry-server: mypreviewregistry.azurecr.io
           image: mypreviewregistry.azurecr.io/myapp:${{ github.sha }}
-          port: 3000
 ```
 
 ---

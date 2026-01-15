@@ -1,5 +1,4 @@
 import { PullRequestMetadata } from "../github/pullRequest";
-export type ServiceType = "frontend" | "backend";
 export type CloudProvider = "azure" | "aws" | "gcp";
 export interface PreviewContext {
     repo: string;
@@ -7,18 +6,12 @@ export interface PreviewContext {
     prNumber: number;
     sha: string;
     serviceName: string;
-    serviceType: ServiceType;
-    runtime: string;
     cloud: CloudProvider;
     env: Record<string, string>;
-    ttlHours?: number;
 }
 export interface ActionInputs {
     serviceName: string;
-    serviceType: ServiceType;
-    runtime: string;
     cloud: CloudProvider;
-    ttlHours?: number;
     env?: Record<string, string>;
 }
 /**
